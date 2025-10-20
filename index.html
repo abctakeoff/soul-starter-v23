@@ -46,7 +46,7 @@ a, a:visited{color:#8fd3ff}
 <body>
 <header>
   <h1>SOUL Starter Lite V23 — Adaptador HTML MIDP/TIDP</h1>
-  <small class="brand">ISO 19650 · flujo S1/S2/Published</small>
+  <small class="brand">ISO 19650 · flujo WIP/TSA/SH/Publ</small>
   <div class="toolbar">
     <button class="btn" id="btnAdd">+ Nuevo paquete</button>
     <button class="btn" id="btnDatos">Datos del Proyecto</button>
@@ -165,11 +165,10 @@ a, a:visited{color:#8fd3ff}
 
 <script>
 /* ===== Config por URL (Vercel/Sheets) ===== */
-const Q=new URLSearchParams(location.search);
-const CFG={
-  backend: Q.get("backend")||"local",     // "local" | "gsheets"
-  endpoint: Q.get("endpoint")||"",        // URL Apps Script (si gsheets)
-  proj: Q.get("proj")||""                 // PRJ por defecto
+const CFG = {
+  backend: "gsheets",
+  endpoint: "https://script.google.com/macros/s/AKfycbzJjPPNyt6J-xRTI6T0SurZK_G3RAFn6q-aKrjDh3oisZfYLelo6Hkk1cTMiNpyVMBY/exec",
+  proj: "PRJ01" // opcional, puedes cambiarlo si quieres precargar un proyecto
 };
 
 /* ===== Util ===== */
@@ -604,4 +603,5 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 </body>
 </html>
+
 
