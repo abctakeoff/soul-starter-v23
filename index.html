@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SOUL Starter Lite V23 — MIDP/TIDP Satélite</title>
+<title>SOUL Starter Lite V23 — MIDP/TIDP Satélite (CSV-only)</title>
 <style>
 :root{--bg:#0b1220;--card:#121a2b;--muted:#8aa0c7;--accent:#33d6a6;--text:#eaf2ff;}
 *{box-sizing:border-box}
@@ -46,7 +46,7 @@ a, a:visited{color:#8fd3ff}
 <body>
 <header>
   <h1>SOUL Starter Lite V23 — Adaptador HTML MIDP/TIDP</h1>
-  <small class="brand">ISO 19650 · flujo WIP/TSA/SH/Publ</small>
+  <small class="brand">ISO 19650 · flujo WIP/TSA/SH/Publ · <b>CSV-only</b></small>
   <div class="toolbar">
     <button class="btn" id="btnAdd">+ Nuevo paquete</button>
     <button class="btn" id="btnDatos">Datos del Proyecto</button>
@@ -113,7 +113,6 @@ a, a:visited{color:#8fd3ff}
         <select id="mSem"><option value=""></option><option>Rojo</option><option>Ámbar</option><option>Verde</option></select>
       </div>
 
-      <!-- --- Trazabilidad y Comunicaciones --- -->
       <div class="full"><h3 style="margin-top:12px">Trazabilidad y Comunicaciones</h3></div>
       <div><label>Canal de comunicación (URL)</label><input id="mURLCanal" placeholder="https://..."></div>
       <div><label>Registro de revisión (URL)</label><input id="mURLReg" placeholder="https://..."></div>
@@ -128,7 +127,7 @@ a, a:visited{color:#8fd3ff}
   </div>
 </div>
 
-<!-- MODAL DATOS DEL PROYECTO (solo Proyecto, Generador, BRK Espacial) -->
+<!-- MODAL DATOS DEL PROYECTO -->
 <div class="modal" id="modalDatos">
   <div class="box">
     <h3>Datos del Proyecto — Catálogos</h3>
@@ -164,11 +163,10 @@ a, a:visited{color:#8fd3ff}
 </footer>
 
 <script>
-/* ===== Config por URL (Vercel/Sheets) ===== */
+/* ===== Config (CSV-only/local) ===== */
 const CFG = {
-  backend: "gsheets",
-  endpoint: "https://script.google.com/macros/s/AKfycbxwXHIQ3JKj5NExZoxaMJ7hjBPsJ7dgRQiE7ymdOKIf07m4UoALzvReAARVQGJnNaf1/exec?key=ABC2025PRO",
-  proj: "PRJ01" // opcional, puedes cambiarlo si quieres precargar un proyecto
+  backend: "local",     // <<< forzado a local
+  proj: "PRJ01"
 };
 
 /* ===== Util ===== */
@@ -178,6 +176,10 @@ const $$=(s,c=document)=>Array.from(c.querySelectorAll(s));
 const uuid=()=>crypto.randomUUID?crypto.randomUUID():'uid-'+Math.random().toString(36).slice(2);
 const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
 const pad4=n=>String(Math.max(1, parseInt(n,10) || 1)).padStart(4,'0');
+const STORAGE_ROWS="SOUL_V23_ROWS";
+const STORAGE_CATS="SOUL_V23_CATS";
+const saveLocal=()=>localStorage.setItem(STORAGE_ROWS, JSON.stringify(rows));
+const loadLocal=()=>JSON.parse(localStorage.getItem(STORAGE_ROWS)||"[]");
 
 /* ===== Catálogos ===== */
 let CATS = {
@@ -200,26 +202,13 @@ let CATS = {
     ["SA","Req. Operacionales y Espaciales-Cliente"],["SH","Cronograma"],["SN","Listado de Excepciones"],
     ["SP","Especificaciones"],["SU","Replanteo Topográfico"]
   ],
-  // Suitabilities con descripciones
   SUITS: [
-    ["S0","Borrador / en preparación"],
-    ["S1","Para coordinación interna"],
-    ["S2","Para revisión interdisciplinaria"],
-    ["S3","Para revisión de cliente"],
-    ["S4","Para aprobación interna"],
-    ["S5","Para aprobación cliente"],
-    ["S6","Para construcción (emitido)"],
-    ["S7","As-Built / Como construido"],
-    ["D1","Emitido para demolición"],
-    ["D2","Emitido para análisis / diseño"],
-    ["D3","Emitido para validación técnica"],
-    ["D4","Emitido para registro documental"],
-    ["AM","Aprobado con modificaciones"],
-    ["A","Aprobado"],
-    ["B","Emitido a construcción"],
-    ["AB","As-built definitivo"]
+    ["S0","Borrador / en preparación"],["S1","Para coordinación interna"],["S2","Para revisión interdisciplinaria"],
+    ["S3","Para revisión de cliente"],["S4","Para aprobación interna"],["S5","Para aprobación cliente"],
+    ["S6","Para construcción (emitido)"],["S7","As-Built / Como construido"],["D1","Emitido para demolición"],
+    ["D2","Emitido para análisis / diseño"],["D3","Emitido para validación técnica"],["D4","Emitido para registro documental"],
+    ["AM","Aprobado con modificaciones"],["A","Aprobado"],["B","Emitido a construcción"],["AB","As-built definitivo"]
   ],
-  // Uniformat resumido (extiéndelo si necesitas más)
   BRK_FUNC: [
     ["Z","General"],["Z1001","Requisitos Administrativos"],["Z1002","Requisitos de Calidad"],["Z1003","Requisitos de Productos"],["Z1020","Impuestos/Permisos/Seguros"],
     ["A","Subestructura"],["A10","Fundaciones"],["A20","Sótano"],
@@ -238,8 +227,8 @@ let CATS = {
 const SUIT_SHARED=new Set(["S1","S2","S3","S4","S5","S6","S7","D1","D2","D3","D4","AM"]);
 const SUIT_PUB=new Set(["A","B","AB"]);
 
-let rows=[];     // paquetes
-let filters={};  // filtros activos
+let rows=[];     
+let filters={};  
 
 /* ===== Helpers UI ===== */
 function fillSelectPairs(sel,pairs,current,placeholder="— (todos) —"){
@@ -252,7 +241,6 @@ function fillSelectPlain(sel,opts,current,placeholder="— (todos) —"){
 }
 function suitDesc(code){ const p=CATS.SUITS.find(x=>x[0]===code); return p? p[1] : ""; }
 function buildFilename(r){
-  // {Proyecto}-{Generador}-{BRK Func}-{BRK Esp}-{Tipo}-{Rol}-{####}
   return [
     r.Proyecto,
     r.Generador,
@@ -267,64 +255,21 @@ function hasMinimum(r){ return !!(r.Rol && r.Tipo_Documento && r.BRK_Espacial &&
 function bumpRev(cur,prefix){ const n=Number(String(cur||`${prefix}00`).slice(1))+1; return `${prefix}${String(n).padStart(2,'0')}`; }
 function canMove(r,to){ if(to==="TSA")return hasMinimum(r); if(to==="Shared")return hasMinimum(r)&&SUIT_SHARED.has(r.Suitability); if(to==="Published")return hasMinimum(r)&&SUIT_PUB.has(r.Suitability); return true; }
 
-/* ===== Backend (local / gsheets) ===== */
-// LISTAR – usa &action=list porque el endpoint ya termina en .../exec?key=...
-async function apiList(){
-  if (CFG.backend !== "gsheets") {
-    return JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]");
-  }
-  const url = CFG.endpoint + "&action=list";
-  const resp = await fetch(url);
-  const json = await resp.json();
-  if (!json.ok) throw new Error(json.error || "Error al listar");
-  return json.data || [];
+/* ===== Backend local (CSV-only) ===== */
+async function apiList(){ return loadLocal(); }
+async function apiUpsert(rec){
+  let arr = loadLocal();
+  const i = arr.findIndex(x => x.UID === rec.UID);
+  if (i >= 0) arr[i] = rec; else arr.push(rec);
+  localStorage.setItem(STORAGE_ROWS, JSON.stringify(arr));
+  return { ok:true };
+}
+async function apiDelete(uid){
+  let arr = loadLocal().filter(x=>x.UID!==uid);
+  localStorage.setItem(STORAGE_ROWS, JSON.stringify(arr));
+  return { ok:true };
 }
 
-// UPSERT – como formulario (evita CORS)
-function getApiKey() {
-  try { return new URL(CFG.endpoint).searchParams.get('key') || ''; }
-  catch { return ''; }
-}
-
-async function apiUpsert(rec) {
-  if (CFG.backend !== "gsheets") {
-    let arr = JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]");
-    const i = arr.findIndex(x => x.UID === rec.UID);
-    if (i >= 0) arr[i] = rec; else arr.push(rec);
-    localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(arr));
-    return { ok: true };
-  }
-
-  const form = new URLSearchParams();
-  form.set('key', getApiKey());
-  form.set('action', 'upsert');
-  form.set('record', JSON.stringify(rec));
-
-  const url = CFG.endpoint; // ya lleva ?key=...
-  const r = await fetch(url, { method: 'POST', body: form });
-  return r.json();
-}
-
-
-// DELETE – también como formulario
-async function apiDelete(uid) {
-  if (CFG.backend !== "gsheets") {
-    let arr = JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]")
-                .filter(x => x.UID !== uid);
-    localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(arr));
-    return { ok: true };
-  }
-
-  const form = new URLSearchParams();
-  form.set('key', getApiKey());
-  form.set('action', 'delete');
-  form.set('uid', uid);
-
-  const url = CFG.endpoint; // ya lleva ?key=...
-  const r = await fetch(url, { method: 'POST', body: form });
-  return r.json();
-}
-  
 /* ===== Filtros ===== */
 function initFilters(){
   fillSelectPairs($("#fProyecto"), CATS.PROYECTOS, "");
@@ -381,7 +326,7 @@ function renderKanban(){
       if(!canMove(r,to)){ alert("Movimiento bloqueado. Revisa Suitability y mínimos (Rol, Tipo, BRK Espacial, Formatos)."); return; }
       if(to==="Shared")    r.Revision=bumpRev(r.Revision,"P");
       if(to==="Published") r.Revision=bumpRev(r.Revision,"A");
-      r.Estado_Kanban=to; renderKanban();
+      r.Estado_Kanban=to; saveLocal(); renderKanban();
     };
   });
 }
@@ -398,7 +343,7 @@ function openEditModal(uid,createMode){
         ChecklistPct:"", Validado:false, Semáforo:"",
         URL_Canal_Comunicacion:"", URL_Registro_Revision:"", URL_Bitacora_Minutas:"", URL_Historial_Cambios:""
       };
-    rows.push(r);
+    rows.push(r); saveLocal();
   }
   if(!r){ alert("No se encontró el paquete."); return; }
 
@@ -436,7 +381,7 @@ $("#mSave").onclick=async ()=>{
   r.Generador=$("#mGen").value; r.Rol=$("#mRol").value; r.Tipo_Documento=$("#mTipo").value;
   r.BRK_Funcional=$("#mBrkFunc").value; r.BRK_Espacial=$("#mBrkEsp").value;
   r.Numero_Secuencial=parseInt($("#mSeq").value,10)||1; r.Suitability=$("#mSuit").value;
-  r.Revision=$("#mRev").value||"P01"; r.Estado_Kanban=$("#mEstado").value;
+  r.Revision=$("#mRev").value||"P01"; r.Estado_Kanban=$("#mEstado").value || "WIP";
   r.Formatos=$$("#mFormatos input[type=checkbox]:checked").map(i=>i.value);
 
   r.Responsable=$("#mR").value||""; r.Aprobador=$("#mA").value||"";
@@ -449,7 +394,7 @@ $("#mSave").onclick=async ()=>{
   r.URL_Historial_Cambios=$("#mURLHist").value||"";
 
   await apiUpsert(r);
-  $("#modalEdit").style.display="none"; renderKanban();
+  $("#modalEdit").style.display="none"; rows = loadLocal(); renderKanban();
 };
 $("#mDelete").onclick=async ()=>{
   const uid=$("#mUID").value;
@@ -458,7 +403,7 @@ $("#mDelete").onclick=async ()=>{
   rows = rows.filter(x => x.UID !== uid);
   await apiDelete(uid);
   $("#modalEdit").style.display="none";
-  renderKanban();
+  rows = loadLocal(); renderKanban();
 };
 
 /* ===== CSV ===== */
@@ -540,10 +485,10 @@ $("#mapApply").onclick=()=>{
       URL_Historial_Cambios:  rec["URL_Historial_Cambios"]||""
     };
   });
-  $("#modalMap").style.display="none"; renderKanban();
+  saveLocal(); $("#modalMap").style.display="none"; renderKanban();
 };
 
-/* ===== Datos del Proyecto (sin BRK Funcional) ===== */
+/* ===== Datos del Proyecto ===== */
 function parseCat(text){
   return String(text||"").split(/\n+/).map(l=>l.trim()).filter(Boolean).map(line=>{
     const [c,n]=line.split(","); return [String(c||"").trim(), String((n||c)||"").trim()];
@@ -568,12 +513,12 @@ $("#btnLoadCats").onclick=()=>{
 };
 $("#btnSaveCats").onclick=()=>{
   const store={PROYECTOS:CATS.PROYECTOS,GENERADORES:CATS.GENERADORES,BRK_ESP:CATS.BRK_ESP};
-  localStorage.setItem("SOUL_V23_CATS", JSON.stringify(store));
+  localStorage.setItem(STORAGE_CATS, JSON.stringify(store));
   alert("Guardado en este navegador.");
 };
 function loadCatsFromLocal(){
   try{
-    const raw=localStorage.getItem("SOUL_V23_CATS"); if(!raw) return; const s=JSON.parse(raw);
+    const raw=localStorage.getItem(STORAGE_CATS); if(!raw) return; const s=JSON.parse(raw);
     if(s.PROYECTOS) CATS.PROYECTOS=s.PROYECTOS;
     if(s.GENERADORES) CATS.GENERADORES=s.GENERADORES;
     if(s.BRK_ESP) CATS.BRK_ESP=s.BRK_ESP;
@@ -585,11 +530,10 @@ async function bootstrap(){
   loadCatsFromLocal();
   initFilters();
   rows = await apiList();
-  if(!rows.length && CFG.backend==="local"){
-    // Semillas para pruebas locales
+  if(!rows.length){
     rows.push({UID:uuid(),Proyecto:"PRJ01",Paquete:"",Generador:"A",Rol:"A",Tipo_Documento:"DR",BRK_Funcional:"Z",BRK_Espacial:"Z01",Numero_Secuencial:1,Suitability:"S1",Revision:"P01",Estado_Kanban:"TSA",Formatos:["PDF","IFC"]});
     rows.push({UID:uuid(),Proyecto:"PRJ01",Paquete:"",Generador:"S",Rol:"R",Tipo_Documento:"IF",BRK_Funcional:"A10",BRK_Espacial:"L01",Numero_Secuencial:2,Suitability:"S2",Revision:"P01",Estado_Kanban:"WIP",Formatos:["IFC","DWG"]});
-    localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(rows));
+    saveLocal();
   }
   renderKanban();
 }
@@ -607,8 +551,3 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 </body>
 </html>
-
-
-
-
-
