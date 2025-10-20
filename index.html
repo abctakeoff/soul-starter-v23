@@ -268,57 +268,45 @@ function bumpRev(cur,prefix){ const n=Number(String(cur||`${prefix}00`).slice(1)
 function canMove(r,to){ if(to==="TSA")return hasMinimum(r); if(to==="Shared")return hasMinimum(r)&&SUIT_SHARED.has(r.Suitability); if(to==="Published")return hasMinimum(r)&&SUIT_PUB.has(r.Suitability); return true; }
 
 /* ===== Backend (local / gsheets) ===== */
+// LISTAR – usa &action=list porque el endpoint ya termina en .../exec?key=...
 async function apiList(){
-  if(CFG.backend !== "gsheets"){
+  if (CFG.backend !== "gsheets") {
     return JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]");
   }
-
-  const url = CFG.endpoint + "?key=ABC2025PRO&action=list";
+  const url = CFG.endpoint + "&action=list";
   const resp = await fetch(url);
   const json = await resp.json();
   if (!json.ok) throw new Error(json.error || "Error al listar");
   return json.data || [];
 }
 
+// UPSERT – como formulario (evita CORS)
 async function apiUpsert(rec){
-  if(CFG.backend !== "gsheets"){
+  if (CFG.backend !== "gsheets") {
     let arr = JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]");
     const i = arr.findIndex(x => x.UID === rec.UID);
     if (i >= 0) arr[i] = rec; else arr.push(rec);
     localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(arr));
-    return { ok: true };
+    return { ok:true };
   }
-
-  // Se envía como formulario para evitar CORS
   const form = new URLSearchParams({
-    key: "ABC2025PRO",
     action: "upsert",
     record: JSON.stringify(rec)
   });
-
-  const resp = await fetch(CFG.endpoint, { method: "POST", body: form });
-  const json = await resp.json();
-  if (!json.ok) throw new Error(json.error || "Error en upsert");
-  return json;
+  const r = await fetch(CFG.endpoint, { method:"POST", body: form });
+  return r.json();
 }
 
+// DELETE – también como formulario
 async function apiDelete(uid){
-  if(CFG.backend !== "gsheets"){
-    let arr = JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]").filter(x => x.UID !== uid);
+  if (CFG.backend !== "gsheets") {
+    const arr = (JSON.parse(localStorage.getItem("SOUL_V23_ROWS")||"[]") || []).filter(x=>x.UID!==uid);
     localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(arr));
-    return { ok: true };
+    return { ok:true };
   }
-
-  const form = new URLSearchParams({
-    key: "ABC2025PRO",
-    action: "delete",
-    uid
-  });
-
-  const resp = await fetch(CFG.endpoint, { method: "POST", body: form });
-  const json = await resp.json();
-  if (!json.ok) throw new Error(json.error || "Error al borrar");
-  return json;
+  const form = new URLSearchParams({ action:"delete", uid });
+  const r = await fetch(CFG.endpoint, { method:"POST", body: form });
+  return r.json();
 }
   
 /* ===== Filtros ===== */
@@ -603,6 +591,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 </body>
 </html>
+
 
 
 
