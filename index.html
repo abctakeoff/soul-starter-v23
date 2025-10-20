@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8" />
+<meta http-equiv="Cache-Control" content="no-store" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>SOUL Starter Lite V23 — MIDP/TIDP Satélite (CSV-only)</title>
 <style>
@@ -46,7 +47,7 @@ a, a:visited{color:#8fd3ff}
 <body>
 <header>
   <h1>SOUL Starter Lite V23 — Adaptador HTML MIDP/TIDP</h1>
-  <small class="brand">ISO 19650 · flujo WIP/TSA/SH/Publ · <b>CSV-only</b></small>
+  <small class="brand">ISO 19650 · flujo WIP/TSA/SH/Publ · <b>CSV-only</b> · <span id="ver"></span></small>
   <div class="toolbar">
     <button class="btn" id="btnAdd">+ Nuevo paquete</button>
     <button class="btn" id="btnDatos">Datos del Proyecto</button>
@@ -113,6 +114,7 @@ a, a:visited{color:#8fd3ff}
         <select id="mSem"><option value=""></option><option>Rojo</option><option>Ámbar</option><option>Verde</option></select>
       </div>
 
+      <!-- Trazabilidad -->
       <div class="full"><h3 style="margin-top:12px">Trazabilidad y Comunicaciones</h3></div>
       <div><label>Canal de comunicación (URL)</label><input id="mURLCanal" placeholder="https://..."></div>
       <div><label>Registro de revisión (URL)</label><input id="mURLReg" placeholder="https://..."></div>
@@ -163,20 +165,20 @@ a, a:visited{color:#8fd3ff}
 </footer>
 
 <script>
-/* ===== Config (CSV-only/local) ===== */
-const CFG = {
-  backend: "local",
-  proj: "PRJ01"
-};
+/* ===== Versión ===== */
+const APP_VERSION="V23.5 CSV-local";
 
-/* --- forzar local e ignorar query params heredados (CORS-safe) --- */
+/* ===== Config (CSV-only/local) ===== */
+const CFG = { backend: "local", proj: "PRJ01" };
+
+/* --- Forzar local e ignorar query params heredados (CORS-safe) --- */
 (function forceLocalAndStripQuery(){
   try {
     CFG.backend = "local";
     if (/\bbackend=/.test(location.search) || /\bendpoint=/.test(location.search)) {
       history.replaceState(null, "", location.pathname);
     }
-  } catch(e) { /* noop */ }
+  } catch(e) {}
 })();
 
 /* ===== Util ===== */
@@ -186,10 +188,16 @@ const $$=(s,c=document)=>Array.from(c.querySelectorAll(s));
 const uuid=()=>crypto.randomUUID?crypto.randomUUID():'uid-'+Math.random().toString(36).slice(2);
 const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
 const pad4=n=>String(Math.max(1, parseInt(n,10) || 1)).padStart(4,'0');
+
+/* ===== Storage helpers (robustos) ===== */
 const STORAGE_ROWS="SOUL_V23_ROWS";
 const STORAGE_CATS="SOUL_V23_CATS";
-const saveLocal=()=>localStorage.setItem(STORAGE_ROWS, JSON.stringify(rows));
-const loadLocal=()=>JSON.parse(localStorage.getItem(STORAGE_ROWS)||"[]");
+function safeSet(key,val){
+  try{ localStorage.setItem(key,val); return true; }
+  catch(e){ console.error("localStorage error",e); alert("No se pudo guardar en este navegador (localStorage)."); return false; }
+}
+const saveLocal=()=> safeSet(STORAGE_ROWS, JSON.stringify(rows));
+const loadLocal=()=>{ try{ return JSON.parse(localStorage.getItem(STORAGE_ROWS)||"[]"); }catch{ return []; } };
 
 /* ===== Catálogos ===== */
 let CATS = {
@@ -271,12 +279,12 @@ async function apiUpsert(rec){
   let arr = loadLocal();
   const i = arr.findIndex(x => x.UID === rec.UID);
   if (i >= 0) arr[i] = rec; else arr.push(rec);
-  localStorage.setItem(STORAGE_ROWS, JSON.stringify(arr));
+  safeSet(STORAGE_ROWS, JSON.stringify(arr));
   return { ok:true };
 }
 async function apiDelete(uid){
   let arr = loadLocal().filter(x=>x.UID!==uid);
-  localStorage.setItem(STORAGE_ROWS, JSON.stringify(arr));
+  safeSet(STORAGE_ROWS, JSON.stringify(arr));
   return { ok:true };
 }
 
@@ -439,7 +447,8 @@ function exportCSV(){
     ];
     lines.push(rec.map(csvEsc).join(","));
   });
-  const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"});
+  // BOM UTF-8 para Excel/Windows
+  const blob=new Blob(["\uFEFF"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="SOUL_MIDP_export_V23.csv"; document.body.appendChild(a); a.click(); a.remove();
 }
 
@@ -523,7 +532,7 @@ $("#btnLoadCats").onclick=()=>{
 };
 $("#btnSaveCats").onclick=()=>{
   const store={PROYECTOS:CATS.PROYECTOS,GENERADORES:CATS.GENERADORES,BRK_ESP:CATS.BRK_ESP};
-  localStorage.setItem(STORAGE_CATS, JSON.stringify(store));
+  safeSet(STORAGE_CATS, JSON.stringify(store));
   alert("Guardado en este navegador.");
 };
 function loadCatsFromLocal(){
@@ -537,10 +546,12 @@ function loadCatsFromLocal(){
 
 /* ===== Boot ===== */
 async function bootstrap(){
+  $("#ver").textContent = APP_VERSION;
   loadCatsFromLocal();
   initFilters();
   rows = await apiList();
   if(!rows.length){
+    // Semillas demo
     rows.push({UID:uuid(),Proyecto:"PRJ01",Paquete:"",Generador:"A",Rol:"A",Tipo_Documento:"DR",BRK_Funcional:"Z",BRK_Espacial:"Z01",Numero_Secuencial:1,Suitability:"S1",Revision:"P01",Estado_Kanban:"TSA",Formatos:["PDF","IFC"]});
     rows.push({UID:uuid(),Proyecto:"PRJ01",Paquete:"",Generador:"S",Rol:"R",Tipo_Documento:"IF",BRK_Funcional:"A10",BRK_Espacial:"L01",Numero_Secuencial:2,Suitability:"S2",Revision:"P01",Estado_Kanban:"WIP",Formatos:["IFC","DWG"]});
     saveLocal();
