@@ -165,9 +165,19 @@ a, a:visited{color:#8fd3ff}
 <script>
 /* ===== Config (CSV-only/local) ===== */
 const CFG = {
-  backend: "local",     // <<< forzado a local
+  backend: "local",
   proj: "PRJ01"
 };
+
+/* --- forzar local e ignorar query params heredados (CORS-safe) --- */
+(function forceLocalAndStripQuery(){
+  try {
+    CFG.backend = "local";
+    if (/\bbackend=/.test(location.search) || /\bendpoint=/.test(location.search)) {
+      history.replaceState(null, "", location.pathname);
+    }
+  } catch(e) { /* noop */ }
+})();
 
 /* ===== Util ===== */
 window.onerror=(m,s,l,c,e)=>{ alert("Error: "+m+" @"+l); console.error(m,s,l,c,e); };
