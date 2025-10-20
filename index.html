@@ -189,7 +189,7 @@ const uuid=()=>crypto.randomUUID?crypto.randomUUID():'uid-'+Math.random().toStri
 const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
 const pad4=n=>String(Math.max(1, parseInt(n,10) || 1)).padStart(4,'0');
 
-/* ===== Storage helpers (robustos) ===== */
+/* ===== Storage helpers ===== */
 const STORAGE_ROWS="SOUL_V23_ROWS";
 const STORAGE_CATS="SOUL_V23_CATS";
 function safeSet(key,val){
@@ -550,12 +550,27 @@ async function bootstrap(){
   loadCatsFromLocal();
   initFilters();
   rows = await apiList();
+
+  // (Opcional) Precarga de presets.csv si no hay datos locales
   if(!rows.length){
-    // Semillas demo
+    try{
+      const r = await fetch('./presets.csv',{cache:'no-store'});
+      if(r.ok){
+        const txt = await r.text();
+        importCSVText(txt); // usa el mismo pipeline de mapeo
+        saveLocal();
+        rows = loadLocal();
+      }
+    }catch(e){ /* no-op si no existe presets.csv */ }
+  }
+
+  // Semillas de demostración si sigue vacío
+  if(!rows.length){
     rows.push({UID:uuid(),Proyecto:"PRJ01",Paquete:"",Generador:"A",Rol:"A",Tipo_Documento:"DR",BRK_Funcional:"Z",BRK_Espacial:"Z01",Numero_Secuencial:1,Suitability:"S1",Revision:"P01",Estado_Kanban:"TSA",Formatos:["PDF","IFC"]});
     rows.push({UID:uuid(),Proyecto:"PRJ01",Paquete:"",Generador:"S",Rol:"R",Tipo_Documento:"IF",BRK_Funcional:"A10",BRK_Espacial:"L01",Numero_Secuencial:2,Suitability:"S2",Revision:"P01",Estado_Kanban:"WIP",Formatos:["IFC","DWG"]});
     saveLocal();
   }
+
   renderKanban();
 }
 document.addEventListener("DOMContentLoaded",()=>{
