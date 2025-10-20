@@ -270,30 +270,58 @@ function canMove(r,to){ if(to==="TSA")return hasMinimum(r); if(to==="Shared")ret
 
 /* ===== Backend (local / gsheets) ===== */
 async function apiList(){
-  if(CFG.backend!=="gsheets"){
-    return JSON.parse(localStorage.getItem("SOUL_V23_ROWS")||"[]");
+  if(CFG.backend !== "gsheets"){
+    return JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]");
   }
-  const url = CFG.endpoint + "?action=list";
-  const r = await fetch(url); const j=await r.json(); return j.data||[];
-}
-async function apiUpsert(rec){
-  if(CFG.backend!=="gsheets"){
-    let arr = JSON.parse(localStorage.getItem("SOUL_V23_ROWS")||"[]");
-    const i = arr.findIndex(x=>x.UID===rec.UID); if(i>=0) arr[i]=rec; else arr.push(rec);
-    localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(arr)); return {ok:true};
-  }
-  const r = await fetch(CFG.endpoint, {method:"POST", body:JSON.stringify({action:"upsert", record:rec})});
-  return r.json();
-}
-async function apiDelete(uid){
-  if(CFG.backend!=="gsheets"){
-    let arr = JSON.parse(localStorage.getItem("SOUL_V23_ROWS")||"[]").filter(x=>x.UID!==uid);
-    localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(arr)); return {ok:true};
-  }
-  const r = await fetch(CFG.endpoint, {method:"POST", body:JSON.stringify({action:"delete", uid})});
-  return r.json();
+
+  const url = CFG.endpoint + "?key=ABC2025PRO&action=list";
+  const resp = await fetch(url);
+  const json = await resp.json();
+  if (!json.ok) throw new Error(json.error || "Error al listar");
+  return json.data || [];
 }
 
+async function apiUpsert(rec){
+  if(CFG.backend !== "gsheets"){
+    let arr = JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]");
+    const i = arr.findIndex(x => x.UID === rec.UID);
+    if (i >= 0) arr[i] = rec; else arr.push(rec);
+    localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(arr));
+    return { ok: true };
+  }
+
+  // Se envía como formulario para evitar CORS
+  const form = new URLSearchParams({
+    key: "ABC2025PRO",
+    action: "upsert",
+    record: JSON.stringify(rec)
+  });
+
+  const resp = await fetch(CFG.endpoint, { method: "POST", body: form });
+  const json = await resp.json();
+  if (!json.ok) throw new Error(json.error || "Error en upsert");
+  return json;
+}
+
+async function apiDelete(uid){
+  if(CFG.backend !== "gsheets"){
+    let arr = JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]").filter(x => x.UID !== uid);
+    localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(arr));
+    return { ok: true };
+  }
+
+  const form = new URLSearchParams({
+    key: "ABC2025PRO",
+    action: "delete",
+    uid
+  });
+
+  const resp = await fetch(CFG.endpoint, { method: "POST", body: form });
+  const json = await resp.json();
+  if (!json.ok) throw new Error(json.error || "Error al borrar");
+  return json;
+}
+  
 /* ===== Filtros ===== */
 function initFilters(){
   fillSelectPairs($("#fProyecto"), CATS.PROYECTOS, "");
@@ -576,3 +604,4 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 </body>
 </html>
+
