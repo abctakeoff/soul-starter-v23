@@ -281,31 +281,47 @@ async function apiList(){
 }
 
 // UPSERT – como formulario (evita CORS)
-async function apiUpsert(rec){
+function getApiKey() {
+  try { return new URL(CFG.endpoint).searchParams.get('key') || ''; }
+  catch { return ''; }
+}
+
+async function apiUpsert(rec) {
   if (CFG.backend !== "gsheets") {
     let arr = JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]");
     const i = arr.findIndex(x => x.UID === rec.UID);
     if (i >= 0) arr[i] = rec; else arr.push(rec);
     localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(arr));
-    return { ok:true };
+    return { ok: true };
   }
-  const form = new URLSearchParams({
-    action: "upsert",
-    record: JSON.stringify(rec)
-  });
-  const r = await fetch(CFG.endpoint, { method:"POST", body: form });
+
+  const form = new URLSearchParams();
+  form.set('key', getApiKey());
+  form.set('action', 'upsert');
+  form.set('record', JSON.stringify(rec));
+
+  const url = CFG.endpoint; // ya lleva ?key=...
+  const r = await fetch(url, { method: 'POST', body: form });
   return r.json();
 }
 
+
 // DELETE – también como formulario
-async function apiDelete(uid){
+async function apiDelete(uid) {
   if (CFG.backend !== "gsheets") {
-    const arr = (JSON.parse(localStorage.getItem("SOUL_V23_ROWS")||"[]") || []).filter(x=>x.UID!==uid);
+    let arr = JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]")
+                .filter(x => x.UID !== uid);
     localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(arr));
-    return { ok:true };
+    return { ok: true };
   }
-  const form = new URLSearchParams({ action:"delete", uid });
-  const r = await fetch(CFG.endpoint, { method:"POST", body: form });
+
+  const form = new URLSearchParams();
+  form.set('key', getApiKey());
+  form.set('action', 'delete');
+  form.set('uid', uid);
+
+  const url = CFG.endpoint; // ya lleva ?key=...
+  const r = await fetch(url, { method: 'POST', body: form });
   return r.json();
 }
   
@@ -591,6 +607,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 </body>
 </html>
+
 
 
 
