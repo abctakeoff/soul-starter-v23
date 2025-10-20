@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SOUL Starter Lite V23 — MIDP/TIDP Satélite</title>
+<style>
+:root{--bg:#0b1220;--card:#121a2b;--muted:#8aa0c7;--accent:#33d6a6;--text:#eaf2ff;}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:16px 20px;border-bottom:1px solid #1f2a44;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+h1{margin:0;font-size:20px;font-weight:700}
+small.brand{opacity:.85}
+.toolbar{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap}
+button.btn,label.btn{background:var(--card);border:1px solid #22406d;color:var(--text);padding:8px 12px;border-radius:12px;font-weight:600;cursor:pointer}
+button.btn:hover,label.btn:hover{border-color:#335a8a}
+.container{height:calc(100% - 66px);display:flex;flex-direction:column;gap:12px;overflow:auto;padding:16px 20px;padding-bottom:100px}
+.panel{background:var(--card);border:1px solid #1f2a44;border-radius:16px;padding:12px}
+.panel h3{margin:0 0 10px 0;font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:#b7c7ff}
+.filters{display:flex;flex-wrap:wrap;gap:10px}
+select,input,textarea{background:#0e172a;border:1px solid #24375c;border-radius:10px;color:var(--text);padding:6px 8px}
+select{min-width:200px}
+.kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:start}
+.col{background:#0f1930;border:1px dashed #2b3f66;border-radius:12px;padding:8px;display:flex;flex-direction:column;min-height:420px}
+.col.dragover{outline:2px dashed var(--accent)}
+.col h4{position:sticky;top:0;background:#0f1930;margin:2px 4px;padding:8px 6px;border-bottom:1px solid #2b3f66;border-radius:8px;text-transform:uppercase;color:#9bb0ff;display:flex;justify-content:space-between;z-index:1}
+.card{background:#0f1930;border:1px solid #2a3d66;border-radius:12px;padding:8px;margin:6px 2px;cursor:grab}
+.card:hover{border-color:#33d6a6}
+.card.dragging{opacity:.6;border-color:var(--accent)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+.modal .box{background:#0f1930;border:1px solid #2a3d66;border-radius:16px;max-width:1000px;width:100%;padding:16px;max-height:95vh;overflow:auto}
+.box h3{margin:0 0 12px 0;font-size:16px}
+.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.form-grid .full{grid-column:1/-1}
+label{display:block;margin-bottom:2px;font-size:12px;color:#9bb0ff}
+.small{font-size:12px;color:#9bb0ff}
+.kbd{font-family:ui-monospace,Consolas,monospace;background:#0e172a;border:1px solid #24375c;padding:2px 6px;border-radius:8px}
+.bar{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.hidden{display:none}
+@media(max-width:1100px){.kanban{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){.form-grid{grid-template-columns:1fr}.kanban{grid-template-columns:1fr}}
+footer{position:fixed;right:12px;bottom:8px;opacity:.75;font-size:12px}
+a, a:visited{color:#8fd3ff}
+</style>
+</head>
+<body>
+<header>
+  <h1>SOUL Starter Lite V23 — Adaptador HTML MIDP/TIDP</h1>
+  <small class="brand">ISO 19650 · flujo WIP/TSA/SH/Publ</small>
+  <div class="toolbar">
+    <button class="btn" id="btnAdd">+ Nuevo paquete</button>
+    <button class="btn" id="btnDatos">Datos del Proyecto</button>
+    <input type="file" id="csvIn" class="hidden" accept=".csv,text/csv">
+    <label class="btn" for="csvIn">Importar CSV</label>
+    <button class="btn" id="btnMap">Mapear columnas</button>
+    <button class="btn" id="btnExport">Exportar CSV</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="panel">
+    <h3>Filtros</h3>
+    <div class="filters">
+      <select id="fProyecto"><option value="">— Proyecto (todos) —</option></select>
+      <select id="fGen"><option value="">— Generador (todos) —</option></select>
+      <select id="fRol"><option value="">— Rol (todos) —</option></select>
+      <select id="fTipo"><option value="">— Tipo (todos) —</option></select>
+      <select id="fBrkFunc"><option value="">— BRK Funcional (todos) —</option></select>
+      <select id="fEstado"><option value="">— Estado (todos) —</option></select>
+    </div>
+  </div>
+
+  <div class="kanban">
+    <div class="col" data-col="WIP"><h4>WIP <span id="countWIP">0</span></h4></div>
+    <div class="col" data-col="TSA"><h4>TSA <span id="countTSA">0</span></h4></div>
+    <div class="col" data-col="Shared"><h4>Shared <span id="countShared">0</span></h4></div>
+    <div class="col" data-col="Published"><h4>Published <span id="countPub">0</span></h4></div>
+  </div>
+</div>
+
+<!-- MODAL EDICIÓN/CREACIÓN -->
+<div class="modal" id="modalEdit">
+  <div class="box">
+    <h3 id="modalTitle">Editar paquete</h3>
+    <div class="form-grid">
+      <div><label>UID</label><input id="mUID" readonly></div>
+      <div><label>Proyecto</label><select id="mProyecto"></select></div>
+      <div><label>Paquete</label><input id="mPaquete" placeholder="opcional"></div>
+
+      <div><label>Generador/Equipo</label><select id="mGen"></select></div>
+      <div><label>Rol</label><select id="mRol"></select></div>
+      <div><label>Tipo Documento</label><select id="mTipo"></select></div>
+
+      <div><label>BRK Funcional</label><select id="mBrkFunc"></select></div>
+      <div><label>BRK Espacial</label><select id="mBrkEsp"></select></div>
+      <div><label>Número Secuencial</label><input id="mSeq" type="number" min="1" step="1" value="1"></div>
+
+      <div><label>Suitability</label><select id="mSuit"></select></div>
+      <div><label>Revisión</label><input id="mRev" placeholder="P01/A01"></div>
+      <div><label>Estado</label><select id="mEstado"></select></div>
+
+      <div class="full"><label>Formatos</label><div id="mFormatos"></div></div>
+
+      <div><label>Responsable (R)</label><input id="mR"></div>
+      <div><label>Aprobador (A)</label><input id="mA"></div>
+      <div><label>F. Emisión</label><input id="mFE" type="date"></div>
+
+      <div><label>F. Revisión</label><input id="mFR" type="date"></div>
+      <div><label>%Checklist</label><input id="mChk" placeholder="0–100"></div>
+      <div><label>Validado</label><input id="mVal" type="checkbox"></div>
+
+      <div><label>Semáforo</label>
+        <select id="mSem"><option value=""></option><option>Rojo</option><option>Ámbar</option><option>Verde</option></select>
+      </div>
+
+      <!-- --- Trazabilidad y Comunicaciones --- -->
+      <div class="full"><h3 style="margin-top:12px">Trazabilidad y Comunicaciones</h3></div>
+      <div><label>Canal de comunicación (URL)</label><input id="mURLCanal" placeholder="https://..."></div>
+      <div><label>Registro de revisión (URL)</label><input id="mURLReg" placeholder="https://..."></div>
+      <div><label>Bitácora / Minutas (URL)</label><input id="mURLBit" placeholder="https://..."></div>
+      <div><label>Historial de cambios (URL)</label><input id="mURLHist" placeholder="https://..."></div>
+    </div>
+    <div class="bar">
+      <button class="btn" id="mDelete" style="margin-right:auto">Eliminar</button>
+      <button class="btn" id="mCancel">Cancelar</button>
+      <button class="btn" id="mSave">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DATOS DEL PROYECTO (solo Proyecto, Generador, BRK Espacial) -->
+<div class="modal" id="modalDatos">
+  <div class="box">
+    <h3>Datos del Proyecto — Catálogos</h3>
+    <div class="small">Un ítem por línea en formato <b>código,descripción</b>. Ej.: <span class="kbd">PRJ01,Proyecto X</span></div>
+    <div class="form-grid">
+      <div class="full"><label>Proyecto</label><textarea id="catProyecto" rows="4" style="width:100%"></textarea></div>
+      <div class="full"><label>Generador/Equipo</label><textarea id="catGen" rows="4" style="width:100%"></textarea></div>
+      <div class="full"><label>BRK Espacial</label><textarea id="catBRE" rows="6" style="width:100%"></textarea></div>
+    </div>
+    <div class="bar">
+      <button class="btn" id="datosCancel">Cerrar</button>
+      <button class="btn" id="btnLoadCats">Cargar catálogos</button>
+      <button class="btn" id="btnSaveCats">Guardar catálogos (local)</button>
+    </div>
+    <div class="small">El <b>BRK Funcional</b> (Uniformat) se mantiene como catálogo estándar interno; solo se elige en el paquete.</div>
+  </div>
+</div>
+
+<!-- MODAL MAPEADOR CSV -->
+<div class="modal" id="modalMap">
+  <div class="box">
+    <h3>Mapear columnas CSV → Campos</h3>
+    <div id="mapBody" class="form-grid"></div>
+    <div class="bar">
+      <button class="btn" id="mapCancel">Cancelar</button>
+      <button class="btn" id="mapApply">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  ABC Takeoff — L. Vargas · <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a>
+</footer>
+
+<script>
+/* ===== Config por URL (Vercel/Sheets) ===== */
+const CFG = {
+  backend: "gsheets",
+  endpoint: "https://script.google.com/macros/s/AKfycbxwXHIQ3JKj5NExZoxaMJ7hjBPsJ7dgRQiE7ymdOKIf07m4UoALzvReAARVQGJnNaf1/exec?key=ABC2025PRO",
+  proj: "PRJ01" // opcional, puedes cambiarlo si quieres precargar un proyecto
+};
+
+/* ===== Util ===== */
+window.onerror=(m,s,l,c,e)=>{ alert("Error: "+m+" @"+l); console.error(m,s,l,c,e); };
+const $=(s,c=document)=>c.querySelector(s);
+const $$=(s,c=document)=>Array.from(c.querySelectorAll(s));
+const uuid=()=>crypto.randomUUID?crypto.randomUUID():'uid-'+Math.random().toString(36).slice(2);
+const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+const pad4=n=>String(Math.max(1, parseInt(n,10) || 1)).padStart(4,'0');
+
+/* ===== Catálogos ===== */
+let CATS = {
+  PROYECTOS: [["PRJ01","Proyecto Genérico"]],
+  GENERADORES: [["A","Architect"],["S","Structural"],["MEP","MEP Team"],["C","Contractor"],["CL","Client"]],
+  ROLES: [
+    ["A","Architect"],["B","Building Surveyor"],["C","Civil Engineer"],["D","Drainage, Highways Engineer"],
+    ["E","Electrical Engineer"],["F","Facilities Manager"],["G","Geographical & Land Surveyor"],
+    ["H","Heating & Ventilation Designer"],["I","Interior Designer"],["K","Client"],["L","Landscape Architect"],
+    ["M","Mechanical Engineer"],["P","Public Health Engineer"],["Q","Quantity Surveyor"],["R","Structural Engineer"],
+    ["S","Town & County Planner"],["T","Contractor"],["W","Sub-Contractor"],["X","Specialist Designer"],["Y","—"],["Z","General"]
+  ],
+  TIPOS: [
+    ["AF","Animación"],["CM","Modelo Combinado (BIM)"],["CR","Detecc. de Conflictos"],["DR","Dibujo 2D"],
+    ["M2","Modelo 2D (CAD)"],["M3","Modelo 3D (BIM)"],["MR","Modelo de Rendiciones (Análisis térmico)"],
+    ["VS","Visualización"],["BQ","Calc. de Cantidades"],["CA","Cálculos"],["CO","Correspondencia"],
+    ["CP","Plan de Costos"],["DB","Bases de Datos"],["FN","Notas de Archivo"],["HS","Seguridad y Salud"],
+    ["IE","Intercambio de Información"],["MI","Minutas/Notas de Acciones"],["MS","Declaración de Métodos"],
+    ["PP","Presentación"],["RD","Programa"],["RI","Solicitud de Información (RFI)"],["RP","Reportes"],
+    ["SA","Req. Operacionales y Espaciales-Cliente"],["SH","Cronograma"],["SN","Listado de Excepciones"],
+    ["SP","Especificaciones"],["SU","Replanteo Topográfico"]
+  ],
+  // Suitabilities con descripciones
+  SUITS: [
+    ["S0","Borrador / en preparación"],
+    ["S1","Para coordinación interna"],
+    ["S2","Para revisión interdisciplinaria"],
+    ["S3","Para revisión de cliente"],
+    ["S4","Para aprobación interna"],
+    ["S5","Para aprobación cliente"],
+    ["S6","Para construcción (emitido)"],
+    ["S7","As-Built / Como construido"],
+    ["D1","Emitido para demolición"],
+    ["D2","Emitido para análisis / diseño"],
+    ["D3","Emitido para validación técnica"],
+    ["D4","Emitido para registro documental"],
+    ["AM","Aprobado con modificaciones"],
+    ["A","Aprobado"],
+    ["B","Emitido a construcción"],
+    ["AB","As-built definitivo"]
+  ],
+  // Uniformat resumido (extiéndelo si necesitas más)
+  BRK_FUNC: [
+    ["Z","General"],["Z1001","Requisitos Administrativos"],["Z1002","Requisitos de Calidad"],["Z1003","Requisitos de Productos"],["Z1020","Impuestos/Permisos/Seguros"],
+    ["A","Subestructura"],["A10","Fundaciones"],["A20","Sótano"],
+    ["B","Cerramiento"],["B10","Superestructura"],["B1010","Niveles/Losas/Cols./Rampas/Escaleras"],["B1020","Techos"],
+    ["B20","Cerramiento Exterior"],["B2011","Paredes Ext."],["B2015","Balcones"],["B2020","Ventanas"],["B2030","Puertas"],["B3010","Cubiertas"],
+    ["C","Interiores"],["C10","Construcción Interior"],["C1010","Particiones"],["C1020","Puertas Int."],["C1030","Accesorios"],["C20","Escaleras"],["C30","Finalizaciones"],
+    ["D","MEP"],["D10","Transp. mecánicos"],["D20","Plomería"],["D30","Aire Acond."],["D40","Contra Incendio"],["D50","Eléctrico"],
+    ["E","Equipos y Mobiliario"],["E10","Equipos"],["E20","Mobiliario"],
+    ["F","Construcción Especial"],["F20","Demolición"],["F30","Trabajos en sitio"],
+    ["G","Terreno"],["G10","Preparación del Terreno"],["G20","Mejoras del Terreno"],["G30","Utilidades Mecánicas"],["G40","Utilidades Eléctricas"],["G50","Otras Utilidades"]
+  ],
+  BRK_ESP: [["Z01","Zona 1"],["Z02","Zona 2"],["L01","Piso 1"],["L02","Piso 2"],["T01","Terreno"] ],
+  ESTADOS: ["WIP","TSA","Shared","Published","Archive"],
+  FORMATOS: ["PDF","IFC","DWG","XLSX","BCF"]
+};
+const SUIT_SHARED=new Set(["S1","S2","S3","S4","S5","S6","S7","D1","D2","D3","D4","AM"]);
+const SUIT_PUB=new Set(["A","B","AB"]);
+
+let rows=[];     // paquetes
+let filters={};  // filtros activos
+
+/* ===== Helpers UI ===== */
+function fillSelectPairs(sel,pairs,current,placeholder="— (todos) —"){
+  sel.innerHTML = `<option value="">${placeholder}</option>` +
+    pairs.map(([c,n])=>`<option value="${c}" ${c===current?"selected":""}>${n} — ${c}</option>`).join("");
+}
+function fillSelectPlain(sel,opts,current,placeholder="— (todos) —"){
+  sel.innerHTML = `<option value="">${placeholder}</option>` +
+    opts.map(v=>`<option ${v===current?"selected":""}>${v}</option>`).join("");
+}
+function suitDesc(code){ const p=CATS.SUITS.find(x=>x[0]===code); return p? p[1] : ""; }
+function buildFilename(r){
+  // {Proyecto}-{Generador}-{BRK Func}-{BRK Esp}-{Tipo}-{Rol}-{####}
+  return [
+    r.Proyecto,
+    r.Generador,
+    r.BRK_Funcional,
+    (r.BRK_Espacial||"").replace(/\s+/g,""),
+    r.Tipo_Documento,
+    r.Rol,
+    pad4(r.Numero_Secuencial||1)
+  ].filter(Boolean).join("-");
+}
+function hasMinimum(r){ return !!(r.Rol && r.Tipo_Documento && r.BRK_Espacial && Array.isArray(r.Formatos) && r.Formatos.length>0); }
+function bumpRev(cur,prefix){ const n=Number(String(cur||`${prefix}00`).slice(1))+1; return `${prefix}${String(n).padStart(2,'0')}`; }
+function canMove(r,to){ if(to==="TSA")return hasMinimum(r); if(to==="Shared")return hasMinimum(r)&&SUIT_SHARED.has(r.Suitability); if(to==="Published")return hasMinimum(r)&&SUIT_PUB.has(r.Suitability); return true; }
+
+/* ===== Backend (local / gsheets) ===== */
+// LISTAR – usa &action=list porque el endpoint ya termina en .../exec?key=...
+async function apiList(){
+  if (CFG.backend !== "gsheets") {
+    return JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]");
+  }
+  const url = CFG.endpoint + "&action=list";
+  const resp = await fetch(url);
+  const json = await resp.json();
+  if (!json.ok) throw new Error(json.error || "Error al listar");
+  return json.data || [];
+}
+
+// UPSERT – como formulario (evita CORS)
+function getApiKey() {
+  try { return new URL(CFG.endpoint).searchParams.get('key') || ''; }
+  catch { return ''; }
+}
+
+async function apiUpsert(rec) {
+  if (CFG.backend !== "gsheets") {
+    let arr = JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]");
+    const i = arr.findIndex(x => x.UID === rec.UID);
+    if (i >= 0) arr[i] = rec; else arr.push(rec);
+    localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(arr));
+    return { ok: true };
+  }
+
+  const form = new URLSearchParams();
+  form.set('key', getApiKey());
+  form.set('action', 'upsert');
+  form.set('record', JSON.stringify(rec));
+
+  const url = CFG.endpoint; // ya lleva ?key=...
+  const r = await fetch(url, { method: 'POST', body: form });
+  return r.json();
+}
+
+
+// DELETE – también como formulario
+async function apiDelete(uid) {
+  if (CFG.backend !== "gsheets") {
+    let arr = JSON.parse(localStorage.getItem("SOUL_V23_ROWS") || "[]")
+                .filter(x => x.UID !== uid);
+    localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(arr));
+    return { ok: true };
+  }
+
+  const form = new URLSearchParams();
+  form.set('key', getApiKey());
+  form.set('action', 'delete');
+  form.set('uid', uid);
+
+  const url = CFG.endpoint; // ya lleva ?key=...
+  const r = await fetch(url, { method: 'POST', body: form });
+  return r.json();
+}
+  
+/* ===== Filtros ===== */
+function initFilters(){
+  fillSelectPairs($("#fProyecto"), CATS.PROYECTOS, "");
+  fillSelectPairs($("#fGen"), CATS.GENERADORES, "");
+  fillSelectPairs($("#fRol"), CATS.ROLES, "");
+  fillSelectPairs($("#fTipo"), CATS.TIPOS, "");
+  fillSelectPairs($("#fBrkFunc"), CATS.BRK_FUNC, "");
+  fillSelectPlain($("#fEstado"), CATS.ESTADOS.filter(s=>s!=="Archive"), "");
+  ["fProyecto","fGen","fRol","fTipo","fBrkFunc","fEstado"].forEach(id=>{
+    $("#"+id).onchange=(e)=>{ filters[id]=e.target.value; renderKanban(); };
+  });
+}
+
+/* ===== Kanban ===== */
+function renderKanban(){
+  $$(".col").forEach(c=>c.querySelectorAll(".card").forEach(el=>el.remove()));
+  const view=rows.filter(r=>
+    (!filters.fProyecto || r.Proyecto===filters.fProyecto) &&
+    (!filters.fGen      || r.Generador===filters.fGen) &&
+    (!filters.fRol      || r.Rol===filters.fRol) &&
+    (!filters.fTipo     || r.Tipo_Documento===filters.fTipo) &&
+    (!filters.fBrkFunc  || r.BRK_Funcional===filters.fBrkFunc) &&
+    (!filters.fEstado   || r.Estado_Kanban===filters.fEstado)
+  );
+  const count=st=>view.filter(r=>r.Estado_Kanban===st).length;
+  $("#countWIP").textContent=count("WIP"); $("#countTSA").textContent=count("TSA");
+  $("#countShared").textContent=count("Shared"); $("#countPub").textContent=count("Published");
+
+  view.forEach(r=>{
+    const card=document.createElement("div");
+    card.className="card"; card.dataset.uid=r.UID; card.draggable=true;
+    const suitTitle = esc(`${r.Suitability||"S0"} — ${suitDesc(r.Suitability)||""}`);
+    card.innerHTML=`
+      <div style="display:flex;justify-content:space-between;gap:6px;align-items:center">
+        <div><b>${esc(r.Tipo_Documento||"-")}</b> · ${esc(r.Rol||"-")} · ${esc(r.BRK_Espacial||"-")}</div>
+        <span class="small" title="${suitTitle}" style="border:1px solid #314a7a;border-radius:999px;padding:2px 8px">
+          ${esc(r.Suitability||"S0")} | ${esc(r.Revision||"P01")}
+        </span>
+      </div>
+      <div class="small">${esc(buildFilename(r))}</div>`;
+    card.addEventListener("click",e=>{ if(!card.classList.contains("dragging")) openEditModal(r.UID,false); });
+    card.addEventListener("dragstart",e=>{ e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData("text/plain",r.UID); card.classList.add("dragging"); });
+    card.addEventListener("dragend",()=> card.classList.remove("dragging"));
+    const col=$(`.col[data-col='${r.Estado_Kanban}']`); if(col) col.appendChild(card);
+  });
+
+  $$(".col").forEach(col=>{
+    col.ondragover=e=>{ e.preventDefault(); col.classList.add("dragover"); e.dataTransfer.dropEffect='move'; };
+    col.ondragleave=()=> col.classList.remove("dragover");
+    col.ondrop=e=>{
+      e.preventDefault(); col.classList.remove("dragover");
+      const uid=e.dataTransfer.getData("text/plain"); const r=rows.find(x=>x.UID===uid); if(!r) return;
+      const to=col.dataset.col; if(r.Estado_Kanban===to) return;
+      if(!canMove(r,to)){ alert("Movimiento bloqueado. Revisa Suitability y mínimos (Rol, Tipo, BRK Espacial, Formatos)."); return; }
+      if(to==="Shared")    r.Revision=bumpRev(r.Revision,"P");
+      if(to==="Published") r.Revision=bumpRev(r.Revision,"A");
+      r.Estado_Kanban=to; renderKanban();
+    };
+  });
+}
+
+/* ===== Modal Paquete ===== */
+function openEditModal(uid,createMode){
+  let r=rows.find(x=>x.UID===uid);
+  if(createMode){
+    r={ UID:uuid(), Proyecto:(CFG.proj|| (CATS.PROYECTOS[0]||["",""])[0]||""), Paquete:"",
+        Generador:(CATS.GENERADORES[0]||["",""])[0]||"", Rol:"A", Tipo_Documento:"DR",
+        BRK_Funcional:"Z", BRK_Espacial:(CATS.BRK_ESP[0]||["",""])[0]||"", Numero_Secuencial:1,
+        Suitability:"S1", Revision:"P01", Estado_Kanban:"WIP",
+        Formatos:[], Responsable:"", Aprobador:"", Fecha_Emisión:"", Fecha_Revisión:"",
+        ChecklistPct:"", Validado:false, Semáforo:"",
+        URL_Canal_Comunicacion:"", URL_Registro_Revision:"", URL_Bitacora_Minutas:"", URL_Historial_Cambios:""
+      };
+    rows.push(r);
+  }
+  if(!r){ alert("No se encontró el paquete."); return; }
+
+  $("#mUID").value=r.UID;
+  fillSelectPairs($("#mProyecto"),CATS.PROYECTOS,r.Proyecto,"— Seleccione —");
+  $("#mPaquete").value=r.Paquete||"";
+  fillSelectPairs($("#mGen"),CATS.GENERADORES,r.Generador,"— Seleccione —");
+  fillSelectPairs($("#mRol"),CATS.ROLES,r.Rol,"— Seleccione —");
+  fillSelectPairs($("#mTipo"),CATS.TIPOS,r.Tipo_Documento,"— Seleccione —");
+  fillSelectPairs($("#mBrkFunc"),CATS.BRK_FUNC,r.BRK_Funcional,"— Seleccione —");
+  fillSelectPairs($("#mBrkEsp"),CATS.BRK_ESP,r.BRK_Espacial,"— Seleccione —");
+  $("#mSeq").value=r.Numero_Secuencial||1;
+  fillSelectPairs($("#mSuit"),CATS.SUITS,r.Suitability,"— Seleccione —");
+  fillSelectPlain($("#mEstado"),CATS.ESTADOS.filter(s=>s!=="Archive"),r.Estado_Kanban,"— Seleccione —");
+  $("#mRev").value=r.Revision||"P01";
+  $("#mFormatos").innerHTML=CATS.FORMATOS.map(f=>`<label style="margin-right:12px"><input type="checkbox" value="${f}" ${Array.isArray(r.Formatos)&&r.Formatos.includes(f)?"checked":""}> ${f}</label>`).join("");
+
+  $("#mR").value=r.Responsable||""; $("#mA").value=r.Aprobador||"";
+  $("#mFE").value=r.Fecha_Emisión||""; $("#mFR").value=r.Fecha_Revisión||"";
+  $("#mChk").value=r.ChecklistPct||""; $("#mVal").checked=!!r.Validado; $("#mSem").value=r.Semáforo||"";
+
+  $("#mURLCanal").value=r.URL_Canal_Comunicacion||"";
+  $("#mURLReg").value=r.URL_Registro_Revision||"";
+  $("#mURLBit").value=r.URL_Bitacora_Minutas||"";
+  $("#mURLHist").value=r.URL_Historial_Cambios||"";
+
+  $("#modalTitle").textContent=uid? "Editar paquete" : "Nuevo paquete";
+  $("#modalEdit").style.display="flex";
+}
+$("#mCancel").onclick=()=> $("#modalEdit").style.display="none";
+$("#mSave").onclick=async ()=>{
+  const uid=$("#mUID").value;
+  let r=rows.find(x=>x.UID===uid); if(!r){ alert("UID no válido"); return; }
+  r.Proyecto=$("#mProyecto").value; r.Paquete=$("#mPaquete").value||"";
+  r.Generador=$("#mGen").value; r.Rol=$("#mRol").value; r.Tipo_Documento=$("#mTipo").value;
+  r.BRK_Funcional=$("#mBrkFunc").value; r.BRK_Espacial=$("#mBrkEsp").value;
+  r.Numero_Secuencial=parseInt($("#mSeq").value,10)||1; r.Suitability=$("#mSuit").value;
+  r.Revision=$("#mRev").value||"P01"; r.Estado_Kanban=$("#mEstado").value;
+  r.Formatos=$$("#mFormatos input[type=checkbox]:checked").map(i=>i.value);
+
+  r.Responsable=$("#mR").value||""; r.Aprobador=$("#mA").value||"";
+  r.Fecha_Emisión=$("#mFE").value||""; r.Fecha_Revisión=$("#mFR").value||"";
+  r.ChecklistPct=$("#mChk").value||""; r.Validado=$("#mVal").checked; r.Semáforo=$("#mSem").value||"";
+
+  r.URL_Canal_Comunicacion=$("#mURLCanal").value||"";
+  r.URL_Registro_Revision=$("#mURLReg").value||"";
+  r.URL_Bitacora_Minutas=$("#mURLBit").value||"";
+  r.URL_Historial_Cambios=$("#mURLHist").value||"";
+
+  await apiUpsert(r);
+  $("#modalEdit").style.display="none"; renderKanban();
+};
+$("#mDelete").onclick=async ()=>{
+  const uid=$("#mUID").value;
+  if(!uid) return;
+  if(!confirm("¿Eliminar este paquete? Esta acción no se puede deshacer.")) return;
+  rows = rows.filter(x => x.UID !== uid);
+  await apiDelete(uid);
+  $("#modalEdit").style.display="none";
+  renderKanban();
+};
+
+/* ===== CSV ===== */
+const CSV_HEADER=[
+  "UID","Proyecto","Paquete","Generador","Rol","Tipo_Documento",
+  "BRK_Funcional","BRK_Espacial","Numero_Secuencial","Suitability",
+  "Revision","Estado_Kanban","Formatos","Nombre_ISO",
+  "Responsable (R)","Aprobador (A)","Fecha_Emisión","Fecha_Revisión",
+  "%Checklist_Doc","Validado","Semáforo",
+  "URL_Canal_Comunicacion","URL_Registro_Revision","URL_Bitacora_Minutas","URL_Historial_Cambios"
+];
+function csvEsc(v){ const s=String(v??""); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+function exportCSV(){
+  const lines=[CSV_HEADER.join(",")];
+  rows.forEach(r=>{
+    const rec=[
+      r.UID,r.Proyecto,r.Paquete||"",r.Generador,r.Rol,r.Tipo_Documento,
+      r.BRK_Funcional,r.BRK_Espacial,r.Numero_Secuencial,r.Suitability,
+      r.Revision,r.Estado_Kanban,(r.Formatos||[]).join("|"),buildFilename(r),
+      r.Responsable||"",r.Aprobador||"",r.Fecha_Emisión||"",r.Fecha_Revisión||"",
+      r.ChecklistPct||"",r.Validado?"1":"",r.Semáforo||"",
+      r.URL_Canal_Comunicacion||"",r.URL_Registro_Revision||"",r.URL_Bitacora_Minutas||"",r.URL_Historial_Cambios||""
+    ];
+    lines.push(rec.map(csvEsc).join(","));
+  });
+  const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="SOUL_MIDP_export_V23.csv"; document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ===== Import CSV + Mapeo ===== */
+function parseCSV(text){
+  const out=[]; let row=[],cur="",inQ=false;
+  for(let i=0;i<text.length;i++){ const ch=text[i];
+    if(inQ){ if(ch=='"'){ if(text[i+1]=='"'){cur+='"';i++;} else inQ=false; } else cur+=ch; }
+    else { if(ch=='"') inQ=true; else if(ch==','){ row.push(cur); cur=""; } else if(ch=='\n'){ row.push(cur); out.push(row); row=[]; cur=""; } else if(ch=='\r'){} else cur+=ch; }
+  }
+  row.push(cur); out.push(row); return out;
+}
+let lastCsvHeaders=[]; let columnMap={}; let pendingRows=null;
+function importCSVText(text){
+  const arr=parseCSV(text); if(!arr.length) return;
+  lastCsvHeaders=arr.shift(); columnMap={};
+  const byKey=s=>String(s).toLowerCase().replace(/[_-]/g," ").replace(/\s+/g," ").trim();
+  const wanted=CSV_HEADER.map(h=>byKey(h));
+  lastCsvHeaders.forEach(h=>{ const k=byKey(h); const i=wanted.indexOf(k); if(i>=0) columnMap[h]=CSV_HEADER[i]; });
+  pendingRows=arr; buildMapUI(); $("#modalMap").style.display="flex";
+}
+function buildMapUI(){
+  const container=$("#mapBody"); container.innerHTML="";
+  const opts=CSV_HEADER.map(h=>`<option>${h}</option>`).join("");
+  lastCsvHeaders.forEach(h=>{
+    const row=document.createElement("div");
+    row.innerHTML=`<div class="kbd">${h}</div><select data-src="${h}">${opts}</select>`;
+    row.querySelector("select").value=columnMap[h]||"";
+    container.appendChild(row);
+  });
+}
+$("#btnMap").onclick=()=>{ if(!lastCsvHeaders.length){ alert("Primero importa un CSV."); return; } buildMapUI(); $("#modalMap").style.display="flex"; };
+$("#mapCancel").onclick=()=> $("#modalMap").style.display="none";
+$("#mapApply").onclick=()=>{
+  columnMap={}; $$("#mapBody select").forEach(s=> columnMap[s.dataset.src]=s.value );
+  const splitFormats=s=>(s||"").split("|").filter(Boolean);
+  rows=(pendingRows||[]).map(cols=>{
+    const rec={}; lastCsvHeaders.forEach((h,i)=>{ const dst=columnMap[h]; if(dst) rec[dst]=cols[i]; });
+    return {
+      UID: rec["UID"]||uuid(), Proyecto: rec["Proyecto"]||"", Paquete: rec["Paquete"]||"",
+      Generador: rec["Generador"]||"", Rol: rec["Rol"]||"", Tipo_Documento: rec["Tipo_Documento"]||"",
+      BRK_Funcional: rec["BRK_Funcional"]||"", BRK_Espacial: rec["BRK_Espacial"]||"",
+      Numero_Secuencial: parseInt(rec["Numero_Secuencial"]||"1",10)||1, Suitability: rec["Suitability"]||"S0",
+      Revision: rec["Revision"]||"P01", Estado_Kanban: rec["Estado_Kanban"]||"WIP",
+      Formatos: splitFormats(rec["Formatos"]||""),
+      Responsable: rec["Responsable (R)"]||"", Aprobador: rec["Aprobador (A)"]||"",
+      Fecha_Emisión: rec["Fecha_Emisión"]||"", Fecha_Revisión: rec["Fecha_Revisión"]||"",
+      ChecklistPct: rec["%Checklist_Doc"]||"", Validado: rec["Validado"]==="1"||rec["Validado"]===true,
+      Semáforo: rec["Semáforo"]||"",
+      URL_Canal_Comunicacion: rec["URL_Canal_Comunicacion"]||"",
+      URL_Registro_Revision:  rec["URL_Registro_Revision"]||"",
+      URL_Bitacora_Minutas:   rec["URL_Bitacora_Minutas"]||"",
+      URL_Historial_Cambios:  rec["URL_Historial_Cambios"]||""
+    };
+  });
+  $("#modalMap").style.display="none"; renderKanban();
+};
+
+/* ===== Datos del Proyecto (sin BRK Funcional) ===== */
+function parseCat(text){
+  return String(text||"").split(/\n+/).map(l=>l.trim()).filter(Boolean).map(line=>{
+    const [c,n]=line.split(","); return [String(c||"").trim(), String((n||c)||"").trim()];
+  });
+}
+function refreshCatalogSelects(){
+  initFilters();
+  if($("#modalEdit").style.display==="flex"){ const uid=$("#mUID").value; if(uid) openEditModal(uid,false); }
+}
+$("#btnDatos").onclick=()=>{
+  $("#catProyecto").value=CATS.PROYECTOS.map(([c,n])=>`${c},${n}`).join("\n");
+  $("#catGen").value=CATS.GENERADORES.map(([c,n])=>`${c},${n}`).join("\n");
+  $("#catBRE").value=CATS.BRK_ESP.map(([c,n])=>`${c},${n}`).join("\n");
+  $("#modalDatos").style.display="flex";
+};
+$("#datosCancel").onclick=()=> $("#modalDatos").style.display="none";
+$("#btnLoadCats").onclick=()=>{
+  const p=parseCat($("#catProyecto").value); if(p.length) CATS.PROYECTOS=p;
+  const g=parseCat($("#catGen").value); if(g.length) CATS.GENERADORES=g;
+  const be=parseCat($("#catBRE").value); if(be.length) CATS.BRK_ESP=be;
+  refreshCatalogSelects(); alert("Catálogos cargados.");
+};
+$("#btnSaveCats").onclick=()=>{
+  const store={PROYECTOS:CATS.PROYECTOS,GENERADORES:CATS.GENERADORES,BRK_ESP:CATS.BRK_ESP};
+  localStorage.setItem("SOUL_V23_CATS", JSON.stringify(store));
+  alert("Guardado en este navegador.");
+};
+function loadCatsFromLocal(){
+  try{
+    const raw=localStorage.getItem("SOUL_V23_CATS"); if(!raw) return; const s=JSON.parse(raw);
+    if(s.PROYECTOS) CATS.PROYECTOS=s.PROYECTOS;
+    if(s.GENERADORES) CATS.GENERADORES=s.GENERADORES;
+    if(s.BRK_ESP) CATS.BRK_ESP=s.BRK_ESP;
+  }catch{}
+}
+
+/* ===== Boot ===== */
+async function bootstrap(){
+  loadCatsFromLocal();
+  initFilters();
+  rows = await apiList();
+  if(!rows.length && CFG.backend==="local"){
+    // Semillas para pruebas locales
+    rows.push({UID:uuid(),Proyecto:"PRJ01",Paquete:"",Generador:"A",Rol:"A",Tipo_Documento:"DR",BRK_Funcional:"Z",BRK_Espacial:"Z01",Numero_Secuencial:1,Suitability:"S1",Revision:"P01",Estado_Kanban:"TSA",Formatos:["PDF","IFC"]});
+    rows.push({UID:uuid(),Proyecto:"PRJ01",Paquete:"",Generador:"S",Rol:"R",Tipo_Documento:"IF",BRK_Funcional:"A10",BRK_Espacial:"L01",Numero_Secuencial:2,Suitability:"S2",Revision:"P01",Estado_Kanban:"WIP",Formatos:["IFC","DWG"]});
+    localStorage.setItem("SOUL_V23_ROWS", JSON.stringify(rows));
+  }
+  renderKanban();
+}
+document.addEventListener("DOMContentLoaded",()=>{
+  $("#btnAdd").addEventListener("click",()=>openEditModal(null,true));
+  $("#btnExport").addEventListener("click",exportCSV);
+  $("#csvIn").addEventListener("change",e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const r=new FileReader(); r.onerror=()=>alert("No se pudo leer el archivo.");
+    r.onload=()=>importCSVText(r.result); r.readAsText(f,'utf-8'); e.target.value="";
+  });
+  $("#mapCancel").onclick=()=> $("#modalMap").style.display="none";
+  bootstrap();
+});
+</script>
+</body>
+</html>
+
+
+
+
