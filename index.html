@@ -114,6 +114,10 @@ a, a:visited{color:#8fd3ff}
         <select id="mSem"><option value=""></option><option>Rojo</option><option>Ámbar</option><option>Verde</option></select>
       </div>
 
+      <!-- NUEVO: Vínculos Satélite/Master -->
+      <div><label>Container ID</label><input id="mContainer" placeholder="CNT-PRJ01-L01-AR"></div>
+      <div><label>Equipo ID</label><input id="mEquipo" placeholder="AR01"></div>
+
       <!-- Trazabilidad -->
       <div class="full"><h3 style="margin-top:12px">Trazabilidad y Comunicaciones</h3></div>
       <div><label>Canal de comunicación (URL)</label><input id="mURLCanal" placeholder="https://..."></div>
@@ -166,7 +170,7 @@ a, a:visited{color:#8fd3ff}
 
 <script>
 /* ===== Versión ===== */
-const APP_VERSION="V23.5 CSV-local";
+const APP_VERSION="V23.6 CSV-local (Container_ID + Equipo_ID)";
 
 /* ===== Config (CSV-only/local) ===== */
 const CFG = { backend: "local", proj: "PRJ01" };
@@ -188,6 +192,7 @@ const $$=(s,c=document)=>Array.from(c.querySelectorAll(s));
 const uuid=()=>crypto.randomUUID?crypto.randomUUID():'uid-'+Math.random().toString(36).slice(2);
 const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
 const pad4=n=>String(Math.max(1, parseInt(n,10) || 1)).padStart(4,'0');
+const sanitize = s => String(s||"").replace(/[^A-Za-z0-9\-\_]/g,"");
 
 /* ===== Storage helpers ===== */
 const STORAGE_ROWS="SOUL_V23_ROWS";
@@ -231,7 +236,7 @@ let CATS = {
     ["Z","General"],["Z1001","Requisitos Administrativos"],["Z1002","Requisitos de Calidad"],["Z1003","Requisitos de Productos"],["Z1020","Impuestos/Permisos/Seguros"],
     ["A","Subestructura"],["A10","Fundaciones"],["A20","Sótano"],
     ["B","Cerramiento"],["B10","Superestructura"],["B1010","Niveles/Losas/Cols./Rampas/Escaleras"],["B1020","Techos"],
-    ["B20","Cerramiento Exterior"],["B2011","Paredes Ext."],["B2015","Balcones"],["B2020","Ventanas"],["B2030","Puertas"],["B3010","Cubiertas"],
+       ["B20","Cerramiento Exterior"],["B2011","Paredes Ext."],["B2015","Balcones"],["B2020","Ventanas"],["B2030","Puertas"],["B3010","Cubiertas"],
     ["C","Interiores"],["C10","Construcción Interior"],["C1010","Particiones"],["C1020","Puertas Int."],["C1030","Accesorios"],["C20","Escaleras"],["C30","Finalizaciones"],
     ["D","MEP"],["D10","Transp. mecánicos"],["D20","Plomería"],["D30","Aire Acond."],["D40","Contra Incendio"],["D50","Eléctrico"],
     ["E","Equipos y Mobiliario"],["E10","Equipos"],["E20","Mobiliario"],
@@ -272,6 +277,15 @@ function buildFilename(r){
 function hasMinimum(r){ return !!(r.Rol && r.Tipo_Documento && r.BRK_Espacial && Array.isArray(r.Formatos) && r.Formatos.length>0); }
 function bumpRev(cur,prefix){ const n=Number(String(cur||`${prefix}00`).slice(1))+1; return `${prefix}${String(n).padStart(2,'0')}`; }
 function canMove(r,to){ if(to==="TSA")return hasMinimum(r); if(to==="Shared")return hasMinimum(r)&&SUIT_SHARED.has(r.Suitability); if(to==="Published")return hasMinimum(r)&&SUIT_PUB.has(r.Suitability); return true; }
+function genContainerID(r){
+  const pj = sanitize(r.Proyecto||"PRJ");
+  const be = sanitize(r.BRK_Espacial||"Z01");
+  const rl = sanitize(r.Rol||"Z");
+  return r.Container_ID || `CNT-${pj}-${be}-${rl}`;
+}
+function genEquipoID(r){
+  return r.Equipo_ID || sanitize(r.Generador||"EQ01");
+}
 
 /* ===== Backend local (CSV-only) ===== */
 async function apiList(){ return loadLocal(); }
@@ -359,6 +373,7 @@ function openEditModal(uid,createMode){
         Suitability:"S1", Revision:"P01", Estado_Kanban:"WIP",
         Formatos:[], Responsable:"", Aprobador:"", Fecha_Emisión:"", Fecha_Revisión:"",
         ChecklistPct:"", Validado:false, Semáforo:"",
+        Container_ID:"", Equipo_ID:"",
         URL_Canal_Comunicacion:"", URL_Registro_Revision:"", URL_Bitacora_Minutas:"", URL_Historial_Cambios:""
       };
     rows.push(r); saveLocal();
@@ -383,6 +398,10 @@ function openEditModal(uid,createMode){
   $("#mFE").value=r.Fecha_Emisión||""; $("#mFR").value=r.Fecha_Revisión||"";
   $("#mChk").value=r.ChecklistPct||""; $("#mVal").checked=!!r.Validado; $("#mSem").value=r.Semáforo||"";
 
+  // NUEVO: Container/Equipo
+  $("#mContainer").value=r.Container_ID || genContainerID(r);
+  $("#mEquipo").value=r.Equipo_ID || genEquipoID(r);
+
   $("#mURLCanal").value=r.URL_Canal_Comunicacion||"";
   $("#mURLReg").value=r.URL_Registro_Revision||"";
   $("#mURLBit").value=r.URL_Bitacora_Minutas||"";
@@ -405,6 +424,10 @@ $("#mSave").onclick=async ()=>{
   r.Responsable=$("#mR").value||""; r.Aprobador=$("#mA").value||"";
   r.Fecha_Emisión=$("#mFE").value||""; r.Fecha_Revisión=$("#mFR").value||"";
   r.ChecklistPct=$("#mChk").value||""; r.Validado=$("#mVal").checked; r.Semáforo=$("#mSem").value||"";
+
+  // NUEVO: Container/Equipo (con fallback automático)
+  r.Container_ID = sanitize($("#mContainer").value) || genContainerID(r);
+  r.Equipo_ID    = sanitize($("#mEquipo").value)    || genEquipoID(r);
 
   r.URL_Canal_Comunicacion=$("#mURLCanal").value||"";
   r.URL_Registro_Revision=$("#mURLReg").value||"";
@@ -431,18 +454,26 @@ const CSV_HEADER=[
   "Revision","Estado_Kanban","Formatos","Nombre_ISO",
   "Responsable (R)","Aprobador (A)","Fecha_Emisión","Fecha_Revisión",
   "%Checklist_Doc","Validado","Semáforo",
+  // NUEVO
+  "Container_ID","Equipo_ID",
+  // URLs
   "URL_Canal_Comunicacion","URL_Registro_Revision","URL_Bitacora_Minutas","URL_Historial_Cambios"
 ];
 function csvEsc(v){ const s=String(v??""); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
 function exportCSV(){
   const lines=[CSV_HEADER.join(",")];
   rows.forEach(r=>{
+    const containerID = genContainerID(r);
+    const equipoID = genEquipoID(r);
     const rec=[
       r.UID,r.Proyecto,r.Paquete||"",r.Generador,r.Rol,r.Tipo_Documento,
       r.BRK_Funcional,r.BRK_Espacial,r.Numero_Secuencial,r.Suitability,
       r.Revision,r.Estado_Kanban,(r.Formatos||[]).join("|"),buildFilename(r),
       r.Responsable||"",r.Aprobador||"",r.Fecha_Emisión||"",r.Fecha_Revisión||"",
       r.ChecklistPct||"",r.Validado?"1":"",r.Semáforo||"",
+      // NUEVO
+      containerID,equipoID,
+      // URLs
       r.URL_Canal_Comunicacion||"",r.URL_Registro_Revision||"",r.URL_Bitacora_Minutas||"",r.URL_Historial_Cambios||""
     ];
     lines.push(rec.map(csvEsc).join(","));
@@ -498,6 +529,9 @@ $("#mapApply").onclick=()=>{
       Fecha_Emisión: rec["Fecha_Emisión"]||"", Fecha_Revisión: rec["Fecha_Revisión"]||"",
       ChecklistPct: rec["%Checklist_Doc"]||"", Validado: rec["Validado"]==="1"||rec["Validado"]===true,
       Semáforo: rec["Semáforo"]||"",
+      // NUEVO: arrastra si existe; si no, se podrá autogenerar al guardar/editar
+      Container_ID: sanitize(rec["Container_ID"]||""),
+      Equipo_ID: sanitize(rec["Equipo_ID"]||""),
       URL_Canal_Comunicacion: rec["URL_Canal_Comunicacion"]||"",
       URL_Registro_Revision:  rec["URL_Registro_Revision"]||"",
       URL_Bitacora_Minutas:   rec["URL_Bitacora_Minutas"]||"",
@@ -566,8 +600,8 @@ async function bootstrap(){
 
   // Semillas de demostración si sigue vacío
   if(!rows.length){
-    rows.push({UID:uuid(),Proyecto:"PRJ01",Paquete:"",Generador:"A",Rol:"A",Tipo_Documento:"DR",BRK_Funcional:"Z",BRK_Espacial:"Z01",Numero_Secuencial:1,Suitability:"S1",Revision:"P01",Estado_Kanban:"TSA",Formatos:["PDF","IFC"]});
-    rows.push({UID:uuid(),Proyecto:"PRJ01",Paquete:"",Generador:"S",Rol:"R",Tipo_Documento:"IF",BRK_Funcional:"A10",BRK_Espacial:"L01",Numero_Secuencial:2,Suitability:"S2",Revision:"P01",Estado_Kanban:"WIP",Formatos:["IFC","DWG"]});
+    rows.push({UID:uuid(),Proyecto:"PRJ01",Paquete:"",Generador:"A",Rol:"A",Tipo_Documento:"DR",BRK_Funcional:"Z",BRK_Espacial:"Z01",Numero_Secuencial:1,Suitability:"S1",Revision:"P01",Estado_Kanban:"TSA",Formatos:["PDF","IFC"],Container_ID:"",Equipo_ID:""});
+    rows.push({UID:uuid(),Proyecto:"PRJ01",Paquete:"",Generador:"S",Rol:"R",Tipo_Documento:"IF",BRK_Funcional:"A10",BRK_Espacial:"L01",Numero_Secuencial:2,Suitability:"S2",Revision:"P01",Estado_Kanban:"WIP",Formatos:["IFC","DWG"],Container_ID:"",Equipo_ID:""});
     saveLocal();
   }
 
